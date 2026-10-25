@@ -1,18 +1,84 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import { useColorScheme } from 'react-native';
+import { Stack } from "expo-router";
+import { SQLiteProvider } from "expo-sqlite";
+import { StatusBar } from "expo-status-bar";
 
-import { AnimatedSplashOverlay } from '@/components/animated-icon';
-import AppTabs from '@/components/app-tabs';
+import { ThemeProvider, useTheme } from "../theme";
 
-SplashScreen.preventAutoHideAsync();
+import { migrateDatabase } from "../lib/database/migrations";
 
-export default function TabLayout() {
-  const colorScheme = useColorScheme();
+function AppNavigator() {
+  const { colors, isDark } = useTheme();
+
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <AnimatedSplashOverlay />
-      <AppTabs />
+    <>
+      <StatusBar style={isDark ? "light" : "dark"} />
+
+      <Stack
+        screenOptions={{
+          headerTintColor: colors.primary,
+          headerStyle: {
+            backgroundColor: colors.background,
+          },
+          contentStyle: {
+            backgroundColor: colors.background,
+          },
+        }}
+      >
+        <Stack.Screen name="index" options={{ headerShown: false }} />
+
+        <Stack.Screen
+          name="onboarding/index"
+          options={{
+            headerShown: false,
+            animation: "fade",
+          }}
+        />
+
+        <Stack.Screen
+          name="onboarding/challenges"
+          options={{
+            headerShown: false,
+            animation: "slide_from_right",
+          }}
+        />
+
+        <Stack.Screen
+          name="onboarding/eating-times"
+          options={{
+            headerShown: false,
+            animation: "slide_from_right",
+          }}
+        />
+
+        <Stack.Screen
+          name="cooking"
+          options={{
+            headerShown: false,
+            animation: "slide_from_bottom",
+          }}
+        />
+
+        <Stack.Screen
+          name="(tabs)"
+          options={{
+            headerShown: false,
+          }}
+        />
+      </Stack>
+    </>
+  );
+}
+
+export default function RootLayout() {
+  return (
+    <ThemeProvider>
+      <SQLiteProvider
+        databaseName="eatsum.db"
+        onInit={migrateDatabase}
+        useSuspense
+      >
+        <AppNavigator />
+      </SQLiteProvider>
     </ThemeProvider>
   );
 }

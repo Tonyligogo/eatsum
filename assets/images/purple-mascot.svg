@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 550" role="img" aria-labelledby="title desc">
+  <title id="title">Purple playful mascot</title>
+  <desc id="desc">Rounded purple character with a little tuft, curved eyebrows, large shiny eyes and two small nostrils.</desc>
+  <!-- The entire illustration is vector artwork; no background. -->
+  <path fill="#8B5CF6" d="M18 217 C87 132 206 105 344 103 C339 80 347 62 363 59 C378 56 389 64 398 78 C407 55 427 47 445 55 C468 65 461 90 447 104 C603 108 704 139 762 217 L762 462 Q762 540 677 540 L104 540 Q18 540 18 462 Z"/>
+  <!-- Eyebrows -->
+  <path d="M214 186 Q244 155 285 180" fill="none" stroke="#0B0B19" stroke-width="23" stroke-linecap="round"/>
+  <path d="M508 180 Q549 155 578 186" fill="none" stroke="#0B0B19" stroke-width="23" stroke-linecap="round"/>
+  <!-- Eyes -->
+  <ellipse cx="247" cy="353" rx="126" ry="124" fill="#FFFFFF"/>
+  <ellipse cx="539" cy="353" rx="126" ry="124" fill="#FFFFFF"/>
+  <ellipse cx="275" cy="380" rx="69" ry="71" fill="#090F38"/>
+  <ellipse cx="501" cy="380" rx="69" ry="71" fill="#090F38"/>
+  <!-- Glossy reflections -->
+  <ellipse cx="255" cy="351" rx="24" ry="26" fill="#FFFFFF"/>
+  <ellipse cx="479" cy="351" rx="24" ry="26" fill="#FFFFFF"/>
+  <circle cx="305" cy="363" r="10" fill="#25315E" opacity="0.55"/>
+  <circle cx="530" cy="363" r="10" fill="#25315E" opacity="0.55"/>
+  <!-- Tiny nose dots -->
+  <circle cx="373" cy="472" r="10" fill="#17203D"/>
+  <circle cx="425" cy="472" r="10" fill="#17203D"/>
+</svg>
