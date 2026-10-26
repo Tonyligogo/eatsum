@@ -4,6 +4,7 @@ import { StatusBar } from "expo-status-bar";
 
 import { ThemeProvider, useTheme } from "../theme";
 
+import { EatSumNotificationController } from "@/features/notifications/EatSumNotificationController";
 import { migrateDatabase } from "../lib/database/migrations";
 
 function AppNavigator() {
@@ -78,6 +79,7 @@ export default function RootLayout() {
         useSuspense
       >
         <AppNavigator />
+        <EatSumNotificationController />
       </SQLiteProvider>
     </ThemeProvider>
   );

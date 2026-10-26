@@ -36,6 +36,7 @@ import {
 import { DueFollowUp } from "@/features/eating/get-due-followup";
 import { createEatingEvent } from "@/features/eating/record-eating";
 import { CreateEatingEventInput } from "@/features/eating/types";
+import { reconcileEatingNotifications } from "@/features/notifications/reminder-schedule";
 import type { EatingWindowId } from "../../features/onboarding/eating-windows";
 
 type EatingSummary = {
@@ -263,6 +264,7 @@ export default function HomeScreen() {
 
     try {
       const eventId = await createEatingEvent(db, input);
+      await reconcileEatingNotifications(db);
 
       // Save the precise record ID for Undo.
       setPendingUndo({ eventId });
@@ -325,6 +327,11 @@ export default function HomeScreen() {
       await saveFollowUpResponse(db, dueFollowUp.windowId, action);
 
       await refreshFollowUp();
+      try {
+        await reconcileEatingNotifications(db);
+      } catch (error) {
+        console.error("Notification reconciliation failed:", error);
+      }
     } catch (error) {
       console.error("Failed to save follow-up response:", error);
 

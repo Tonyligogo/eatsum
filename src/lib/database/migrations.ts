@@ -1,6 +1,6 @@
 import type { SQLiteDatabase } from "expo-sqlite";
 
-const DATABASE_VERSION = 5;
+const DATABASE_VERSION = 6;
 
 export async function migrateDatabase(db: SQLiteDatabase) {
   await db.execAsync("PRAGMA journal_mode = WAL;");
@@ -108,6 +108,33 @@ export async function migrateDatabase(db: SQLiteDatabase) {
       );
 
       PRAGMA user_version = 5;
+    `);
+    });
+  }
+
+  if (version < 6) {
+    await db.withExclusiveTransactionAsync(async (tx) => {
+      await tx.execAsync(`
+      CREATE TABLE IF NOT EXISTS notification_preferences (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        enabled INTEGER NOT NULL DEFAULT 0
+      );
+
+      INSERT OR IGNORE INTO notification_preferences
+        (id, enabled)
+      VALUES (1, 0);
+
+      CREATE TABLE IF NOT EXISTS preparation_snoozes (
+        day_key TEXT NOT NULL,
+        window_id TEXT NOT NULL
+          CHECK (
+            window_id IN ('breakfast', 'lunch', 'dinner')
+          ),
+        remind_at INTEGER NOT NULL,
+        PRIMARY KEY (day_key, window_id)
+      );
+
+      PRAGMA user_version = 6;
     `);
     });
   }

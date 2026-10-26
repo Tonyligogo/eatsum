@@ -5,6 +5,7 @@ import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -22,6 +23,15 @@ import {
   type ThemePreference,
 } from "../../theme";
 
+import {
+  hasNotificationPermission,
+  requestNotificationPermission,
+  scheduleTestNotification,
+} from "@/features/notifications/notification-service";
+import {
+  reconcileEatingNotifications,
+  setEatingNotificationsEnabled,
+} from "@/features/notifications/reminder-schedule";
 import {
   adjustTime,
   formatTime,
@@ -90,6 +100,10 @@ export default function SettingsScreen() {
 
   const [savingId, setSavingId] = useState<EatingWindowId | null>(null);
 
+  const [remindersEnabled, setRemindersEnabled] = useState(false);
+
+  const [notificationBusy, setNotificationBusy] = useState(false);
+
   const loadWindows = useCallback(async () => {
     const rows = await db.getAllAsync<EatingWindowRow>(
       `SELECT id, label, target_minutes, enabled
@@ -117,41 +131,60 @@ export default function SettingsScreen() {
     useCallback(() => {
       let active = true;
 
-      const load = async () => {
+      const loadSettings = async () => {
+        setLoading(true);
+
         try {
-          const rows = await db.getAllAsync<EatingWindowRow>(
-            `SELECT id, label, target_minutes, enabled
+          const [rows, notificationPreference] = await Promise.all([
+            db.getAllAsync<EatingWindowRow>(
+              `SELECT
+                 id,
+                 label,
+                 target_minutes,
+                 enabled
                FROM eating_windows`,
-          );
+            ),
+
+            db.getFirstAsync<{ enabled: number }>(
+              `SELECT enabled
+               FROM notification_preferences
+               WHERE id = 1`,
+            ),
+          ]);
 
           if (!active) return;
 
-          setWindows(
-            defaultWindows.map((fallback) => {
-              const saved = rows.find((row) => row.id === fallback.id);
+          const mergedWindows = defaultWindows.map((fallback) => {
+            const saved = rows.find((row) => row.id === fallback.id);
 
-              return saved
-                ? {
-                    ...fallback,
-                    label: saved.label,
-                    targetMinutes: saved.target_minutes,
-                    enabled: saved.enabled === 1,
-                  }
-                : fallback;
-            }),
-          );
+            if (!saved) return fallback;
+
+            return {
+              ...fallback,
+              label: saved.label,
+              targetMinutes: saved.target_minutes,
+              enabled: saved.enabled === 1,
+            };
+          });
+
+          setWindows(mergedWindows);
+
+          // This controls the notification switch.
+          setRemindersEnabled(notificationPreference?.enabled === 1);
         } catch (error) {
-          console.error(error);
+          console.error("Couldn't load settings:", error);
 
           if (active) {
-            Alert.alert("Couldn't load eating times", "Please try again.");
+            Alert.alert("Couldn't load settings", "Please try again.");
           }
         } finally {
-          if (active) setLoading(false);
+          if (active) {
+            setLoading(false);
+          }
         }
       };
 
-      load();
+      void loadSettings();
 
       return () => {
         active = false;
@@ -196,6 +229,11 @@ export default function SettingsScreen() {
       setWindows((current) =>
         current.map((window) => (window.id === id ? updated : window)),
       );
+      try {
+        await reconcileEatingNotifications(db);
+      } catch (error) {
+        console.error("Couldn't reschedule eating notifications:", error);
+      }
     } catch (error) {
       console.error(error);
 
@@ -214,6 +252,73 @@ export default function SettingsScreen() {
       targetMinutes: adjustTime(window.targetMinutes, delta),
     });
   };
+
+  async function changeReminders(enabled: boolean) {
+    if (notificationBusy) return;
+
+    setNotificationBusy(true);
+
+    try {
+      if (enabled) {
+        const permission = await requestNotificationPermission();
+
+        if (!permission) {
+          Alert.alert(
+            "Notifications are turned off",
+            "You can allow EatSum notifications in your iPhone Settings.",
+            [
+              { text: "Not now", style: "cancel" },
+              {
+                text: "Open Settings",
+                onPress: () => {
+                  void Linking.openSettings();
+                },
+              },
+            ],
+          );
+          return;
+        }
+      }
+
+      await setEatingNotificationsEnabled(db, enabled);
+
+      setRemindersEnabled(enabled);
+    } catch (error) {
+      console.error(error);
+
+      Alert.alert("Couldn't update reminders", "Please try again.");
+    } finally {
+      setNotificationBusy(false);
+    }
+  }
+
+  async function sendTestReminder() {
+    try {
+      const permitted = await hasNotificationPermission();
+
+      if (!permitted) {
+        Alert.alert(
+          "Notifications are disabled",
+          "Enable notifications first.",
+        );
+        return;
+      }
+
+      await scheduleTestNotification();
+
+      Alert.alert(
+        "Notification scheduled 💜",
+        "Your test reminder will appear in about five seconds. Try returning to the Home screen or locking your phone.",
+      );
+    } catch (error) {
+      console.error(error);
+
+      Alert.alert(
+        "Couldn't send test",
+        "Check the notification permission and try again.",
+      );
+    }
+  }
 
   return (
     <ScrollView
@@ -250,7 +355,7 @@ export default function SettingsScreen() {
 
           <View style={styles.sectionHeaderText}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              Eating reminders
+              Eating times
             </Text>
 
             <Text
@@ -259,7 +364,7 @@ export default function SettingsScreen() {
                 { color: colors.textSecondary },
               ]}
             >
-              Choose when you'd like a little nudge.
+              Set the times that feel right for you.
             </Text>
           </View>
         </View>
@@ -411,8 +516,182 @@ export default function SettingsScreen() {
         )}
 
         <Text style={[styles.helperText, { color: colors.textSecondary }]}>
-          These times currently guide your companion's expressions. Phone
-          notifications are coming later.
+          EatSum uses these times for your companion, eating check-ins, and
+          optional cooking reminders.
+        </Text>
+      </View>
+
+      {/* test reminder button */}
+
+      {/* Phone notifications */}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <View
+            style={[
+              styles.sectionIcon,
+              { backgroundColor: colors.primaryLight },
+            ]}
+          >
+            <Ionicons
+              name="notifications-outline"
+              size={20}
+              color={colors.primary}
+            />
+          </View>
+
+          <View style={styles.sectionHeaderText}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>
+              Notifications
+            </Text>
+
+            <Text
+              style={[
+                styles.sectionDescription,
+                { color: colors.textSecondary },
+              ]}
+            >
+              A little encouragement, when you want it.
+            </Text>
+          </View>
+        </View>
+
+        <View
+          style={[
+            styles.notificationCard,
+            {
+              backgroundColor: colors.surface,
+              borderColor: colors.border,
+            },
+          ]}
+        >
+          {/* Main notification switch */}
+          <View style={styles.notificationToggleRow}>
+            <View
+              style={[
+                styles.mealIcon,
+                {
+                  backgroundColor: colors.primaryLight,
+                },
+              ]}
+            >
+              <Ionicons
+                name="notifications-outline"
+                size={20}
+                color={colors.primary}
+              />
+            </View>
+
+            <View style={styles.notificationToggleText}>
+              <Text style={[styles.notificationTitle, { color: colors.text }]}>
+                Eating reminders
+              </Text>
+
+              <Text
+                style={[
+                  styles.notificationDescription,
+                  { color: colors.textSecondary },
+                ]}
+              >
+                Cooking prompts and a gentle daily review.
+              </Text>
+            </View>
+
+            <Switch
+              value={remindersEnabled}
+              disabled={notificationBusy}
+              onValueChange={changeReminders}
+              accessibilityLabel="Enable eating notifications"
+              trackColor={{
+                false: colors.border,
+                true: palette.purple[300],
+              }}
+              thumbColor={
+                remindersEnabled ? palette.purple[600] : colors.surface
+              }
+              ios_backgroundColor={colors.border}
+            />
+          </View>
+
+          {/* Explanation */}
+          <View
+            style={[
+              styles.notificationDetails,
+              { borderTopColor: colors.divider },
+            ]}
+          >
+            <View style={styles.notificationInfoRow}>
+              <Ionicons
+                name="restaurant-outline"
+                size={17}
+                color={colors.primary}
+              />
+
+              <Text
+                style={[
+                  styles.notificationInfoText,
+                  { color: colors.textSecondary },
+                ]}
+              >
+                A cooking reminder 30 minutes before each enabled eating time.
+              </Text>
+            </View>
+
+            <View style={styles.notificationInfoRow}>
+              <Ionicons name="moon-outline" size={17} color={colors.primary} />
+
+              <Text
+                style={[
+                  styles.notificationInfoText,
+                  { color: colors.textSecondary },
+                ]}
+              >
+                One evening check-in when eating moments still need reviewing.
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Developer-only notification test */}
+        {__DEV__ && (
+          <Pressable
+            onPress={sendTestReminder}
+            disabled={notificationBusy || !remindersEnabled}
+            accessibilityRole="button"
+            style={({ pressed }) => [
+              styles.notificationTestButton,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+                opacity:
+                  !remindersEnabled || notificationBusy
+                    ? 0.45
+                    : pressed
+                      ? 0.7
+                      : 1,
+              },
+            ]}
+          >
+            <Ionicons
+              name="paper-plane-outline"
+              size={19}
+              color={colors.primary}
+            />
+
+            <Text style={[styles.notificationTestText, { color: colors.text }]}>
+              Send test notification
+            </Text>
+
+            <Ionicons
+              name="chevron-forward"
+              size={18}
+              color={colors.textMuted}
+            />
+          </Pressable>
+        )}
+
+        <Text style={[styles.helperText, { color: colors.textSecondary }]}>
+          You can turn reminders off whenever you like. No internet connection
+          is needed.
         </Text>
       </View>
 
@@ -700,5 +979,69 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing[3],
+  },
+
+  notificationCard: {
+    borderWidth: 1,
+    borderRadius: radius.xl,
+    overflow: "hidden",
+  },
+
+  notificationToggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: spacing[4],
+    gap: spacing[3],
+  },
+
+  notificationToggleText: {
+    flex: 1,
+    gap: 5,
+  },
+
+  notificationTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+  },
+
+  notificationDescription: {
+    fontSize: 12,
+    lineHeight: 18,
+  },
+
+  notificationDetails: {
+    borderTopWidth: 1,
+    paddingHorizontal: spacing[4],
+    paddingVertical: spacing[3],
+    gap: spacing[3],
+  },
+
+  notificationInfoRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing[3],
+  },
+
+  notificationInfoText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 19,
+  },
+
+  notificationTestButton: {
+    marginTop: spacing[3],
+    borderWidth: 1,
+    borderRadius: radius.xl,
+    paddingHorizontal: spacing[4],
+    minHeight: 54,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing[3],
+  },
+
+  notificationTestText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "600",
   },
 });

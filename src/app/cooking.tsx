@@ -19,6 +19,7 @@ import { useCookingAudio } from "@/features/cooking/useCookingAudio";
 import { createEatingEvent } from "@/features/eating/record-eating";
 import { CheckInWindow } from "@/features/eating/suggest-eating-window";
 import { CreateEatingEventInput } from "@/features/eating/types";
+import { reconcileEatingNotifications } from "@/features/notifications/reminder-schedule";
 import { EatingWindowId } from "@/features/onboarding/eating-windows";
 import { useSQLiteContext } from "expo-sqlite";
 import { CookingScene } from "../components/cooking/CookingScene";
@@ -169,6 +170,8 @@ export default function CookingScreen() {
         ...input,
         source: "COOKING",
       });
+
+      await reconcileEatingNotifications(db);
 
       setCheckInOpen(false);
       cookingAudio.pause();

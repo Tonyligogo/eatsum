@@ -28,14 +28,25 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "image": "./assets/images/eatsum-icon.png",
+          "imageWidth": 270,
+          "resizeMode": "contain",
+          "backgroundColor": "#5B21B6",
+          "dark": {
+            "image": "./assets/images/eatsum-icon.png",
+            "backgroundColor": "#5B21B6"
+          }
         }
       ],
       "expo-sqlite",
       "@react-native-vector-icons/ionicons",
-      "expo-audio"
+      "expo-audio",
+      [
+        "expo-notifications",
+        {
+          "enableRemoteNotifications": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
